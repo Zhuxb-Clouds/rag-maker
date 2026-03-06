@@ -1,0 +1,20 @@
+services:
+  rag-maker:
+    build: .
+    container_name: rag-maker
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config:ro
+    environment:
+      - NODE_ENV=production
+      - RAG_CONFIG_PATH=/app/config/sources.yaml
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

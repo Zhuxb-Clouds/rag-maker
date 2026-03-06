@@ -1,0 +1,57 @@
+# ─── LanceDB storage ───
+databasePath: ./data/lancedb
+
+# ─── Git repos clone directory ───
+reposPath: ./data/repos
+
+# ─── Source state persistence ───
+statePath: ./data/sources-state.json
+
+# ─── Embedding configuration ───
+embedding:
+  provider: transformers # "transformers" (local ONNX) or "ollama"
+  model: Xenova/all-MiniLM-L6-v2 # HuggingFace model ID
+  dimensions: 384 # Must match the model output
+  # ollamaBaseUrl: http://localhost:11434 # Only for ollama provider
+
+# ─── Chunker configuration ───
+chunker:
+  maxChunkSize: 1000
+  chunkOverlap: 200
+  similarityThresholdPercentile: 75
+  minChunkSentences: 2
+
+# ─── MCP transport ───
+mcpTransport: stdio # "stdio" for local IDE integration, "http" for remote/Docker
+
+# ─── Server (only used when mcpTransport: http) ───
+server:
+  port: 3000
+  host: 0.0.0.0
+
+# ─── Document Sources ───
+sources:
+  # Example: a public GitHub repo
+  # - id: my-docs
+  #   name: My Documentation
+  #   type: git
+  #   url: https://github.com/user/repo.git
+  #   branch: main
+  #   cron: "0 * * * *"           # sync every hour
+  #   include:
+  #     - "**/*.md"
+  #     - "**/*.txt"
+  #   exclude:
+  #     - "**/node_modules/**"
+  #     - "**/.git/**"
+  #   # webhookSecret: your-secret  # optional, for GitHub webhook verification
+
+  # Example: a local directory
+  # - id: my-local-docs
+  #   name: Local Notes
+  #   type: local
+  #   path: /path/to/your/documents/
+  #   cron: "*/30 * * * *"  # sync every 30 minutes
+  #   include:
+  #     - "**/*.md"
+  #     - "**/*.pdf"

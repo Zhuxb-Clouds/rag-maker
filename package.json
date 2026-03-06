@@ -1,0 +1,43 @@
+{
+  "name": "rag-maker",
+  "version": "0.1.0",
+  "description": "Multi-source RAG system with MCP server, LanceDB, and local embeddings",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.3.5",
+    "@types/pdf-parse": "^1.1.5",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "@lancedb/lancedb": "^0.26.2",
+    "@langchain/textsplitters": "^1.0.1",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "apache-arrow": "^18.1.0",
+    "express": "^5.2.1",
+    "js-yaml": "^4.1.1",
+    "node-cron": "^4.2.1",
+    "pdf-parse": "^2.4.5",
+    "pino": "^10.3.1",
+    "reflect-metadata": "^0.2.2",
+    "simple-git": "^3.32.3",
+    "undici": "^7.22.0",
+    "zod": "^4.3.6"
+  }
+}
