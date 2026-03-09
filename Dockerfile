@@ -30,7 +30,7 @@ COPY --from=builder /app/package.json ./
 # Create data directories
 RUN mkdir -p data/lancedb data/repos data/models
 
-EXPOSE 3000
+EXPOSE 10086
 
 ENV NODE_ENV=production
 ENV MCP_TRANSPORT=http
