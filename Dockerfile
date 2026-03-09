@@ -1,34 +1,22 @@
-FROM node:20-slim AS builder
-
-# Install git (required by simple-git)
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Install dependencies
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
-
-# Copy source
-COPY tsconfig.json ./
-COPY src/ ./src/
-
-# Build
-RUN npx tsc
-
-# ─── Production stage ───
 FROM node:20-slim
 
+# git is required at runtime by simple-git (clone / pull sources)
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
+# Copy package metadata
+COPY package.json ./
 
-# Create data directories
-RUN mkdir -p data/lancedb data/repos data/models
+# Copy pre-built artifacts from local (build with: pnpm install && pnpm build)
+COPY node_modules/ ./node_modules/
+COPY dist/ ./dist/
+
+# Pre-bundle embedding models so the image works fully offline
+COPY data/models/ ./data/models/
+
+# Create runtime data directories
+RUN mkdir -p data/lancedb data/repos
 
 EXPOSE 10086
 

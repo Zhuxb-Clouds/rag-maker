@@ -1,0 +1,18 @@
+.git
+.gitignore
+
+# Data files (runtime-generated, not needed in build context except models)
+data/lancedb
+data/repos
+data/sources-state.json
+
+# IDE / editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Misc
+*.md
+LICENSE
+scripts

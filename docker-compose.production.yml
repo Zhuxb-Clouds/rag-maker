@@ -1,13 +1,13 @@
+# Production compose file - uses pre-built image directly
+# Load image first: docker load < rag-maker.tar.gz
 services:
   rag-maker:
-    build: .
+    image: rag-maker:latest
     container_name: rag-maker
     restart: unless-stopped
     ports:
       - "10086:10086"
     volumes:
-      # Fine-grained mounts so pre-bundled models inside the image are preserved.
-      # Override with ./data/models:/app/data/models if you want to manage models externally.
       - ./data/lancedb:/app/data/lancedb
       - ./data/repos:/app/data/repos
       - ./data/sources-state.json:/app/data/sources-state.json
