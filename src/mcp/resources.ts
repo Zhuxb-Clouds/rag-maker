@@ -4,18 +4,30 @@ import { createChildLogger } from "../utils/logger.js";
 
 const log = createChildLogger("mcp:resources");
 
-/** Register MCP resources on the server. */
-export function registerResources(server: McpServer, ctx: SyncContext): void {
+/**
+ * Register MCP resources on the server.
+ * @param scopedSourceId - When set, only show stats for this source.
+ */
+export function registerResources(
+  server: McpServer,
+  ctx: SyncContext,
+  scopedSourceId?: string,
+): void {
   // ─── Index overview resource ───
   server.resource(
     "index-status",
     "status://index",
     {
-      description: "Overview of the RAG index: total chunks, per-source stats, sync status",
+      description: scopedSourceId
+        ? `RAG index status for source '${scopedSourceId}'`
+        : "Overview of the RAG index: total chunks, per-source stats, sync status",
       mimeType: "application/json",
     },
     async (uri) => {
-      const sources = ctx.sourceManager.getAll();
+      const allSources = ctx.sourceManager.getAll();
+      const sources = scopedSourceId
+        ? allSources.filter((s) => s.config.id === scopedSourceId)
+        : allSources;
       const stats = await ctx.store.getStats();
 
       const overview = {

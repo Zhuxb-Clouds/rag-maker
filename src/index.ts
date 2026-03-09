@@ -1,8 +1,11 @@
 import "reflect-metadata";
 import crypto from "node:crypto";
+import { randomUUID } from "node:crypto";
 import express from "express";
+import cors from "cors";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { loadConfig } from "./config/loader.js";
 import { createEmbeddingProvider } from "./embedding/index.js";
 import { VectorStore } from "./vectordb/store.js";
@@ -36,40 +39,119 @@ async function main() {
   // ─── 5. Build sync context ───
   const ctx: SyncContext = { config, embedder, store, sourceManager };
 
-  // ─── 6. Create MCP server ───
-  const mcpServer = createMcpServer(ctx);
+  // ─── 6. Create MCP server (only for stdio mode; HTTP mode creates per-session) ───
 
   // ─── 7. Start transport ───
   if (config.mcpTransport === "stdio") {
     log.info("Starting MCP server with stdio transport");
+    const mcpServer = createMcpServer(ctx);
     const transport = new StdioServerTransport();
     await mcpServer.connect(transport);
   } else {
-    // HTTP mode: Express app with SSE transport + webhook endpoints
+    // HTTP mode: Express app with Streamable HTTP transport + webhook endpoints
     const app = express();
+    app.use(cors());
     app.use(express.json());
 
-    // SSE endpoint for MCP
-    const transports: Map<string, SSEServerTransport> = new Map();
+    // ─── Session management ───
+    const transports = new Map<string, StreamableHTTPServerTransport>();
 
-    app.get("/sse", async (req, res) => {
-      const transport = new SSEServerTransport("/messages", res);
-      transports.set(transport.sessionId, transport);
-      res.on("close", () => {
-        transports.delete(transport.sessionId);
-      });
-      await mcpServer.connect(transport);
-    });
+    /**
+     * MCP POST handler — handles initialization and subsequent JSON-RPC requests.
+     * @param scopedSourceId - When set, creates a scoped MCP server for this source only.
+     */
+    const handleMcpPost = async (
+      req: express.Request,
+      res: express.Response,
+      scopedSourceId?: string,
+    ) => {
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
-    app.post("/messages", async (req, res) => {
-      const sessionId = req.query.sessionId as string;
-      const transport = transports.get(sessionId);
-      if (transport) {
-        await transport.handlePostMessage(req, res);
-      } else {
-        res.status(400).send("Unknown session");
+      try {
+        if (sessionId && transports.has(sessionId)) {
+          // Existing session — forward to its transport
+          await transports.get(sessionId)!.handleRequest(req, res, req.body);
+        } else if (!sessionId && isInitializeRequest(req.body)) {
+          // New session initialization
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => randomUUID(),
+            onsessioninitialized: (sid: string) => {
+              transports.set(sid, transport);
+              log.info(
+                { sessionId: sid, scopedSourceId: scopedSourceId ?? "all" },
+                "MCP session initialized",
+              );
+            },
+          });
+
+          transport.onclose = () => {
+            const sid = transport.sessionId;
+            if (sid) {
+              transports.delete(sid);
+              log.info({ sessionId: sid }, "MCP session closed");
+            }
+          };
+
+          // Create MCP server (scoped or full) and connect transport
+          const server = createMcpServer(ctx, scopedSourceId);
+          await server.connect(transport);
+          await transport.handleRequest(req, res, req.body);
+        } else {
+          res.status(400).json({
+            jsonrpc: "2.0",
+            error: { code: -32000, message: "Bad Request: No valid session ID provided" },
+            id: null,
+          });
+        }
+      } catch (error) {
+        log.error({ error }, "Error handling MCP POST request");
+        if (!res.headersSent) {
+          res.status(500).json({
+            jsonrpc: "2.0",
+            error: { code: -32603, message: "Internal server error" },
+            id: null,
+          });
+        }
       }
-    });
+    };
+
+    /** MCP GET handler — SSE stream for server-initiated notifications. */
+    const handleMcpGet = async (req: express.Request, res: express.Response) => {
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+      if (!sessionId || !transports.has(sessionId)) {
+        res.status(400).send("Invalid or missing session ID");
+        return;
+      }
+      await transports.get(sessionId)!.handleRequest(req, res);
+    };
+
+    /** MCP DELETE handler — session termination. */
+    const handleMcpDelete = async (req: express.Request, res: express.Response) => {
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+      if (!sessionId || !transports.has(sessionId)) {
+        res.status(400).send("Invalid or missing session ID");
+        return;
+      }
+      try {
+        await transports.get(sessionId)!.handleRequest(req, res);
+      } catch (error) {
+        log.error({ error }, "Error handling session termination");
+        if (!res.headersSent) {
+          res.status(500).send("Error processing session termination");
+        }
+      }
+    };
+
+    // ─── MCP endpoints (full access) ───
+    app.post("/mcp", (req, res) => handleMcpPost(req, res));
+    app.get("/mcp", handleMcpGet);
+    app.delete("/mcp", handleMcpDelete);
+
+    // ─── MCP endpoints (scoped to a single source) ───
+    // Usage: configure MCP client with URL http://host:port/mcp/source/<sourceId>
+    app.post("/mcp/source/:sourceId", (req, res) => handleMcpPost(req, res, req.params.sourceId));
+    app.get("/mcp/source/:sourceId", handleMcpGet);
+    app.delete("/mcp/source/:sourceId", handleMcpDelete);
 
     // ─── Webhook endpoint ───
     app.post("/webhook/:sourceId", async (req, res) => {
@@ -113,11 +195,27 @@ async function main() {
         status: "ok",
         totalChunks: stats.totalChunks,
         sources: sourceManager.getAll().length,
+        activeSessions: transports.size,
       });
     });
 
-    app.listen(config.server.port, config.server.host, () => {
-      log.info({ port: config.server.port, host: config.server.host }, "HTTP server started");
+    const server = app.listen(config.server.port, config.server.host, () => {
+      log.info(
+        { port: config.server.port, host: config.server.host },
+        "Streamable HTTP server started. Endpoints: /mcp (full), /mcp/source/:id (scoped)",
+      );
+    });
+
+    // Graceful close of HTTP transports on shutdown
+    process.on("SIGINT", async () => {
+      for (const [sid, transport] of transports) {
+        try {
+          await transport.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      server.close();
     });
   }
 

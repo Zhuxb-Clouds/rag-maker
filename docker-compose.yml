@@ -4,7 +4,7 @@ services:
     container_name: rag-maker
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "10086:10086"
     volumes:
       - ./data:/app/data
       - ./config:/app/config:ro
@@ -13,7 +13,7 @@ services:
       - RAG_CONFIG_PATH=/app/config/sources.yaml
       - LOG_LEVEL=info
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:10086/health"]
       interval: 30s
       timeout: 10s
       retries: 3

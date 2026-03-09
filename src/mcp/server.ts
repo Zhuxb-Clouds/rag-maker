@@ -6,16 +6,21 @@ import { createChildLogger } from "../utils/logger.js";
 
 const log = createChildLogger("mcp:server");
 
-/** Create and configure the MCP server with all tools and resources. */
-export function createMcpServer(ctx: SyncContext): McpServer {
+/**
+ * Create and configure the MCP server with all tools and resources.
+ * @param ctx - Sync context with embedder, store, source manager, etc.
+ * @param scopedSourceId - Optional source ID to restrict all operations to a single source.
+ *                         When set, search results and tool operations are scoped to this source only.
+ */
+export function createMcpServer(ctx: SyncContext, scopedSourceId?: string): McpServer {
   const server = new McpServer({
-    name: "rag-maker",
+    name: scopedSourceId ? `rag-maker [${scopedSourceId}]` : "rag-maker",
     version: "0.1.0",
   });
 
-  registerTools(server, ctx);
-  registerResources(server, ctx);
+  registerTools(server, ctx, scopedSourceId);
+  registerResources(server, ctx, scopedSourceId);
 
-  log.info("MCP server created");
+  log.info({ scopedSourceId: scopedSourceId ?? "none" }, "MCP server created");
   return server;
 }
