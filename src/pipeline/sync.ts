@@ -238,7 +238,7 @@ export async function syncSource(sourceId: string, ctx: SyncContext): Promise<nu
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
     ctx.sourceManager.markError(sourceId, errMsg);
-    log.error({ error, source: sourceId }, "Sync failed");
+    log.error({ err: error, source: sourceId }, "Sync failed");
     return 0;
   } finally {
     activeSyncs.delete(sourceId);

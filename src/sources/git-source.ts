@@ -1,6 +1,6 @@
 import { resolve, join, relative } from "node:path";
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm, readdir } from "node:fs/promises";
 import { simpleGit, type SimpleGit } from "simple-git";
 import type { DocumentSourceConfig } from "../config/schema.js";
 import type { FileChange, SourceState } from "./types.js";
@@ -29,8 +29,19 @@ export async function syncGitRepo(
     log.info({ source: config.id, branch: config.branch }, "Pulling latest");
     await git.pull("origin", config.branch);
   } else {
+    // Clean up stale directory from a previous failed clone
+    const entries = await readdir(repoDir);
+    if (entries.length > 0) {
+      log.warn(
+        { source: config.id, files: entries.length },
+        "Removing stale repo directory from previous failed clone",
+      );
+      await rm(repoDir, { recursive: true, force: true });
+      await mkdir(repoDir, { recursive: true });
+    }
+
     // Fresh clone
-    log.info({ source: config.id, url: config.url, branch: config.branch }, "Cloning");
+    log.info({ source: config.id, url: redactUrl(config.url), branch: config.branch }, "Cloning");
 
     let cloneUrl = config.url;
     if (config.auth?.token) {
@@ -166,4 +177,16 @@ function matchesExclude(filePath: string, excludeGlobs: string[]): boolean {
     const dir = pattern.replace(/\*\*/g, "").replace(/\//g, "");
     return filePath.includes(dir);
   });
+}
+
+/** Redact credentials from a URL for safe logging. */
+function redactUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.username) u.username = "***";
+    if (u.password) u.password = "***";
+    return u.toString();
+  } catch {
+    return url.replace(/:\/\/[^@]+@/, "://***:***@");
+  }
 }
