@@ -5,12 +5,9 @@ services:
     image: rag-maker:latest
     container_name: rag-maker
     restart: unless-stopped
-    ports:
-      - "10086:10086"
+    network_mode: host
     volumes:
-      - ./data/lancedb:/app/data/lancedb
-      - ./data/repos:/app/data/repos
-      - ./data/sources-state.json:/app/data/sources-state.json
+      - ./data:/app/data
       - ./config:/app/config:ro
     environment:
       - NODE_ENV=production

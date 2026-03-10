@@ -2,7 +2,46 @@ import { z } from "zod";
 
 // ─── Document source config ───
 
+/** Common fields shared by all source types */
+const BaseSourceFields = {
+  /** Unique identifier for this source */
+  id: z.string().regex(/^[a-zA-Z0-9_-]+$/),
+  name: z.string(),
+  /** Glob patterns for files to include (default: all supported types) */
+  include: z
+    .array(z.string())
+    .default([
+      "**/*.md",
+      "**/*.txt",
+      "**/*.pdf",
+      "**/*.ts",
+      "**/*.js",
+      "**/*.py",
+      "**/*.go",
+      "**/*.java",
+      "**/*.rs",
+      "**/*.c",
+      "**/*.cpp",
+      "**/*.h",
+      "**/*.hpp",
+      "**/*.json",
+      "**/*.yaml",
+      "**/*.yml",
+    ]),
+  /** Glob patterns for files to exclude */
+  exclude: z
+    .array(z.string())
+    .default(["**/node_modules/**", "**/.git/**", "**/dist/**", "**/build/**"]),
+  /** Cron expression for scheduled sync (default: every hour) */
+  cron: z.string().default("0 * * * *"),
+  /** Webhook secret for push-triggered sync */
+  webhookSecret: z.string().optional(),
+  /** Whether this source is enabled */
+  enabled: z.boolean().default(true),
+};
+
 const GitSourceSchema = z.object({
+  ...BaseSourceFields,
   type: z.literal("git"),
   url: z.string().url(),
   branch: z.string().default("main"),
@@ -18,48 +57,12 @@ const GitSourceSchema = z.object({
 });
 
 const LocalSourceSchema = z.object({
+  ...BaseSourceFields,
   type: z.literal("local"),
   path: z.string(),
 });
 
-const DocumentSourceSchema = z
-  .object({
-    /** Unique identifier for this source */
-    id: z.string().regex(/^[a-zA-Z0-9_-]+$/),
-    name: z.string(),
-    /** Glob patterns for files to include (default: all supported types) */
-    include: z
-      .array(z.string())
-      .default([
-        "**/*.md",
-        "**/*.txt",
-        "**/*.pdf",
-        "**/*.ts",
-        "**/*.js",
-        "**/*.py",
-        "**/*.go",
-        "**/*.java",
-        "**/*.rs",
-        "**/*.c",
-        "**/*.cpp",
-        "**/*.h",
-        "**/*.hpp",
-        "**/*.json",
-        "**/*.yaml",
-        "**/*.yml",
-      ]),
-    /** Glob patterns for files to exclude */
-    exclude: z
-      .array(z.string())
-      .default(["**/node_modules/**", "**/.git/**", "**/dist/**", "**/build/**"]),
-    /** Cron expression for scheduled sync (default: every hour) */
-    cron: z.string().default("0 * * * *"),
-    /** Webhook secret for push-triggered sync */
-    webhookSecret: z.string().optional(),
-    /** Whether this source is enabled */
-    enabled: z.boolean().default(true),
-  })
-  .and(z.discriminatedUnion("type", [GitSourceSchema, LocalSourceSchema]));
+const DocumentSourceSchema = z.discriminatedUnion("type", [GitSourceSchema, LocalSourceSchema]);
 
 export type DocumentSourceConfig = z.infer<typeof DocumentSourceSchema>;
 
