@@ -245,6 +245,13 @@ async function main() {
 }
 
 main().catch((error) => {
-  log.fatal({ error }, "Fatal error");
+  // LanceDB Rust errors may not have a standard `message`; extract all useful fields.
+  const details = {
+    message: error?.message ?? String(error),
+    code: error?.code,
+    name: error?.name,
+    stack: error?.stack,
+  };
+  log.fatal({ error: details }, "Fatal error");
   process.exit(1);
 });
