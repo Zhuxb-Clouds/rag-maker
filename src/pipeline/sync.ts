@@ -131,8 +131,8 @@ export async function syncSource(sourceId: string, ctx: SyncContext): Promise<nu
           continue;
         }
 
-        // Chunk the document (fast — uses fallback text splitting)
-        const chunks = await chunkText(doc.content, ctx.embedder, ctx.config.chunker);
+        // Chunk the document (AST-aware for TS/JS, text splitting otherwise)
+        const chunks = await chunkText(doc.content, ctx.embedder, ctx.config.chunker, doc.metadata);
 
         fileBatches.push({ change, chunks, contentHash: doc.contentHash });
 

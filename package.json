@@ -22,7 +22,6 @@
     "@types/node": "^25.3.5",
     "@types/pdf-parse": "^1.1.5",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
   "dependencies": {
@@ -39,6 +38,7 @@
     "pino": "^10.3.1",
     "reflect-metadata": "^0.2.2",
     "simple-git": "^3.32.3",
+    "typescript": "^5.9.3",
     "undici": "^7.22.0",
     "zod": "^4.3.6"
   }
