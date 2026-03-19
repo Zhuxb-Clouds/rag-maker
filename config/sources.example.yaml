@@ -20,6 +20,8 @@ chunker:
   chunkOverlap: 200
   similarityThresholdPercentile: 75
   minChunkSentences: 2
+  semanticOverlapSentences: 1
+  markdownSemanticSectionMinLength: 1200
 
 # ─── MCP transport ───
 mcpTransport: stdio # "stdio" for local IDE integration, "http" for remote/Docker

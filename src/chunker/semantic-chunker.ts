@@ -11,18 +11,22 @@ export interface TextChunk {
 
 /**
  * Split text into sentences using a simple heuristic.
- * Handles common sentence boundaries including abbreviations.
+ * Supports both whitespace-delimited and CJK punctuation-delimited sentence boundaries.
  */
 function splitSentences(text: string): string[] {
-  // Split on sentence-ending punctuation followed by whitespace
-  const sentences = text
-    .split(/(?<=[.!?。！？])\s+/)
+  const normalized = text.replace(/\r\n/g, "\n").trim();
+  if (normalized.length === 0) return [];
+
+  // Split on sentence-ending punctuation.
+  // For CJK text, punctuation is often followed by no whitespace.
+  const sentences = normalized
+    .split(/(?<=[.!?。！？])(?:\s+|(?=[A-Z0-9\u4e00-\u9fff"“'‘(\[]))/u)
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 
   // If no sentence boundaries found, split by paragraphs
   if (sentences.length <= 1) {
-    return text
+    return normalized
       .split(/\n\n+/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
@@ -70,13 +74,16 @@ export async function semanticChunk(
     similarityThresholdPercentile?: number;
     maxChunkSize?: number;
     minChunkSentences?: number;
+    overlapSentences?: number;
   } = {},
 ): Promise<TextChunk[]> {
   const {
     similarityThresholdPercentile: thresholdPercentile = 75,
     maxChunkSize = 1000,
     minChunkSentences = 2,
+    overlapSentences = 1,
   } = options;
+  const safeOverlap = Math.max(0, Math.floor(overlapSentences));
 
   const sentences = splitSentences(text);
 
@@ -110,45 +117,59 @@ export async function semanticChunk(
     }
   }
 
-  // Build chunks from breakpoints
-  const chunks: TextChunk[] = [];
+  // Build chunk ranges from breakpoints
+  const ranges: Array<{ start: number; end: number }> = [];
   let start = 0;
-  let chunkIndex = 0;
-
   const splitPoints = [...breakpoints, sentences.length];
 
   for (const end of splitPoints) {
     if (end <= start) continue;
-
-    let chunkText = sentences.slice(start, end).join(" ");
-
-    // If chunk exceeds maxChunkSize, split it further
-    if (chunkText.length > maxChunkSize) {
-      // Sub-split the oversized chunk
-      let subStart = start;
-      while (subStart < end) {
-        let subEnd = subStart + 1;
-        let subText = sentences[subStart];
-
-        while (subEnd < end) {
-          const candidate = subText + " " + sentences[subEnd];
-          if (candidate.length > maxChunkSize) break;
-          subText = candidate;
-          subEnd++;
-        }
-
-        chunks.push({ text: subText.trim(), index: chunkIndex++ });
-        subStart = subEnd;
-      }
-    } else {
-      chunks.push({ text: chunkText.trim(), index: chunkIndex++ });
-    }
-
+    ranges.push({ start, end });
     start = end;
   }
 
+  // Build chunks from ranges with optional sentence overlap
+  const chunks: TextChunk[] = [];
+  let chunkIndex = 0;
+
+  const appendSizedChunks = (rangeStart: number, rangeEnd: number) => {
+    let subStart = rangeStart;
+
+    while (subStart < rangeEnd) {
+      let subEnd = subStart + 1;
+      let subText = sentences[subStart] ?? "";
+
+      while (subEnd < rangeEnd) {
+        const candidate = `${subText} ${sentences[subEnd]}`;
+        if (candidate.length > maxChunkSize) break;
+        subText = candidate;
+        subEnd++;
+      }
+
+      chunks.push({ text: subText.trim(), index: chunkIndex++ });
+
+      if (subEnd >= rangeEnd) {
+        break;
+      }
+
+      const nextStart = Math.max(subEnd - safeOverlap, subStart + 1);
+      subStart = nextStart;
+    }
+  };
+
+  for (let i = 0; i < ranges.length; i++) {
+    const range = ranges[i];
+    const effectiveStart = i === 0 ? range.start : Math.max(0, range.start - safeOverlap);
+    appendSizedChunks(effectiveStart, range.end);
+  }
+
   log.debug(
-    { sentences: sentences.length, chunks: chunks.length, breakpoints: breakpoints.length },
+    {
+      sentences: sentences.length,
+      chunks: chunks.length,
+      breakpoints: breakpoints.length,
+      overlapSentences: safeOverlap,
+    },
     "Semantic chunking complete",
   );
 

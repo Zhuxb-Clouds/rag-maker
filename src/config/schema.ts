@@ -91,6 +91,10 @@ const ChunkerConfigSchema = z.object({
   similarityThresholdPercentile: z.number().min(0).max(100).default(75),
   /** Minimum sentences per chunk */
   minChunkSentences: z.number().int().positive().default(2),
+  /** Sentence overlap between semantic chunks */
+  semanticOverlapSentences: z.number().int().nonnegative().default(1),
+  /** Minimum markdown section length (chars) to use semantic chunking */
+  markdownSemanticSectionMinLength: z.number().int().positive().default(1200),
 });
 
 export type ChunkerConfig = z.infer<typeof ChunkerConfigSchema>;
@@ -117,6 +121,8 @@ export const AppConfigSchema = z.object({
     chunkOverlap: 200,
     similarityThresholdPercentile: 75,
     minChunkSentences: 2,
+    semanticOverlapSentences: 1,
+    markdownSemanticSectionMinLength: 1200,
   }),
   /** Document sources */
   sources: z.array(DocumentSourceSchema).default([]),
